@@ -1,0 +1,6 @@
+[package]
+name = "compose-taffy"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
