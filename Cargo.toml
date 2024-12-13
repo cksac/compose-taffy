@@ -4,3 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+compose-rt = { git = "https://github.com/cksac/compose-rt" }
+taffy = "0.7.0"
