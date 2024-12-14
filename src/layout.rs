@@ -1,10 +1,10 @@
 use compose_rt::{Composer, Recomposer, ScopeId};
 use taffy::{
     compute_block_layout, compute_cached_layout, compute_flexbox_layout, compute_grid_layout,
-    compute_hidden_layout, compute_leaf_layout, compute_root_layout, print_tree, AvailableSpace,
-    Cache, CacheTree, Display, FlexDirection, Layout, LayoutBlockContainer, LayoutFlexboxContainer,
-    LayoutGridContainer, LayoutPartialTree, NodeId, PrintTree, RoundTree, RunMode, Size, Style,
-    TraversePartialTree, TraverseTree,
+    compute_hidden_layout, compute_leaf_layout, compute_root_layout, print_tree, round_layout,
+    AvailableSpace, Cache, CacheTree, Display, FlexDirection, Layout, LayoutBlockContainer,
+    LayoutFlexboxContainer, LayoutGridContainer, LayoutPartialTree, NodeId, PrintTree, RoundTree,
+    RunMode, Size, Style, TraversePartialTree, TraverseTree,
 };
 
 pub trait NodeIdLike {
@@ -83,6 +83,17 @@ impl Default for TaffyConfig {
     }
 }
 
+impl TaffyConfig {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn with_rounding(mut self, use_rounding: bool) -> Self {
+        self.use_rounding = use_rounding;
+        self
+    }
+}
+
 pub struct ChildIter<'a>(core::slice::Iter<'a, ScopeId>);
 impl Iterator for ChildIter<'_> {
     type Item = NodeId;
@@ -115,14 +126,6 @@ where
             config,
             measure_function,
         }
-    }
-
-    pub fn enable_rounding(&mut self) {
-        self.config.use_rounding = true;
-    }
-
-    pub fn disable_rounding(&mut self) {
-        self.config.use_rounding = false;
     }
 }
 
@@ -460,14 +463,16 @@ where
 }
 
 pub trait LayoutTree<NodeContext> {
-    fn compute_layout_with_measure<MeasureFunction>(
+    fn root(&self) -> ScopeId;
+
+    fn compute_layout_with<MeasureFn>(
         &mut self,
         scope: ScopeId,
         available_space: Size<AvailableSpace>,
         config: TaffyConfig,
-        measure_function: MeasureFunction,
+        measure_fn: MeasureFn,
     ) where
-        MeasureFunction: FnMut(
+        MeasureFn: FnMut(
             Size<Option<f32>>,
             Size<AvailableSpace>,
             NodeId,
@@ -475,32 +480,38 @@ pub trait LayoutTree<NodeContext> {
             &Style,
         ) -> Size<f32>;
 
-    fn compute_layout(
-        &mut self,
-        scope: ScopeId,
-        config: TaffyConfig,
-        available_space: Size<AvailableSpace>,
-    ) {
-        self.compute_layout_with_measure(scope, available_space, config, |_, _, _, _, _| {
-            Size::ZERO
-        });
+    #[inline(always)]
+    fn compute_layout(&mut self, config: TaffyConfig, available_space: Size<AvailableSpace>) {
+        let scope = self.root();
+        self.compute_layout_with(scope, available_space, config, |_, _, _, _, _| Size::ZERO);
     }
 
-    fn print_layout_tree(&mut self, root: ScopeId, config: TaffyConfig);
+    fn print_layout_tree_with(&mut self, scope: ScopeId, config: TaffyConfig);
+
+    #[inline(always)]
+    fn print_layout_tree(&mut self, config: TaffyConfig) {
+        let scope = self.root();
+        self.print_layout_tree_with(scope, config);
+    }
 }
 
 impl<T> LayoutTree<T> for Recomposer<LayoutNode<T>>
 where
     T: 'static,
 {
-    fn compute_layout_with_measure<MeasureFunction>(
+    #[inline(always)]
+    fn root(&self) -> ScopeId {
+        self.root_scope()
+    }
+
+    fn compute_layout_with<MeasureFn>(
         &mut self,
         scope: ScopeId,
         available_space: Size<AvailableSpace>,
         config: TaffyConfig,
-        measure_function: MeasureFunction,
+        measure_function: MeasureFn,
     ) where
-        MeasureFunction: FnMut(
+        MeasureFn: FnMut(
             Size<Option<f32>>,
             Size<AvailableSpace>,
             NodeId,
@@ -509,15 +520,19 @@ where
         ) -> Size<f32>,
     {
         self.with_composer_mut(|composer| {
+            let node_id = scope.into_node_id();
             let mut tree = TaffyTree::new(composer, config, measure_function);
-            compute_root_layout(&mut tree, scope.into_node_id(), available_space);
+            compute_root_layout(&mut tree, node_id, available_space);
+            if tree.config.use_rounding {
+                round_layout(&mut tree, node_id);
+            }
         });
     }
 
-    fn print_layout_tree(&mut self, root: ScopeId, config: TaffyConfig) {
+    fn print_layout_tree_with(&mut self, scope: ScopeId, config: TaffyConfig) {
         self.with_composer_mut(|composer| {
             let mut tree = TaffyTree::new(composer, config, |_, _, _, _, _| Size::ZERO);
-            print_tree(&mut tree, root.into_node_id());
+            print_tree(&mut tree, scope.into_node_id());
         });
     }
 }
