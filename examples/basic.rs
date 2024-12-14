@@ -16,9 +16,9 @@ where
     s.create_node(
         scope,
         content,
-        move || style.clone(),
-        |style| LayoutNode::new(style),
-        |n, style| {
+        move |_| style.clone(),
+        |style, _| LayoutNode::new(style),
+        |n, style, _| {
             if n.style != style {
                 n.style = style;
             }
@@ -36,9 +36,9 @@ where
     s.create_node(
         scope,
         |_| {},
-        move || style.clone(),
-        |style| LayoutNode::new(style),
-        |n, style| {
+        move |_| style.clone(),
+        |style, _| LayoutNode::new(style),
+        |n, style, _| {
             if n.style != style {
                 n.style = style;
                 n.mark_dirty();
@@ -74,13 +74,10 @@ fn app(s: Scope<Root>) {
 }
 
 fn main() {
-    let mut recomposer = Composer::compose(app);
-    recomposer.compute_layout(
-        TaffyConfig::default(),
-        Size {
-            height: AvailableSpace::Definite(100.0),
-            width: AvailableSpace::Definite(100.0),
-        },
-    );
-    recomposer.print_layout_tree(TaffyConfig::default());
+    let mut recomposer = Composer::compose(app, TaffyConfig::default());
+    recomposer.compute_layout(Size {
+        height: AvailableSpace::Definite(100.0),
+        width: AvailableSpace::Definite(100.0),
+    });
+    recomposer.print_layout_tree();
 }
