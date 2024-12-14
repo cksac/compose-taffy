@@ -5,4 +5,39 @@ edition = "2021"
 
 [dependencies]
 compose-rt = { git = "https://github.com/cksac/compose-rt" }
-taffy = "0.7.0"
+taffy = { version = "0.7", default-features = false, features = ["std"] }
+
+[features]
+default = [
+    "flexbox",
+    "grid",
+    "block_layout",
+    "content_size",
+]
+
+## Enables the Block layout algorithm.
+block_layout = ["taffy/block_layout"]
+
+## Enables the Flexbox layout algorithm.
+flexbox = ["taffy/flexbox"]
+
+## Enables the CSS Grid layout algorithm. 
+grid = ["taffy/grid"]
+
+## Causes all algorithms to compute and output a content size for each node
+content_size = ["taffy/content_size"]
+
+## Add [`serde`] derives to Style structs
+serde = ["taffy/serde"]
+
+## Allow Taffy to depend on the alloc library
+alloc = ["taffy/alloc"]
+
+[[example]]
+name = "basic"
+features = [
+    "flexbox",
+    "grid",
+    "block_layout",
+    "content_size",
+]

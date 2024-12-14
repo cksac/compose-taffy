@@ -1,10 +1,15 @@
 use compose_rt::{ComposeNode, Composer, Recomposer, ScopeId};
+#[cfg(feature = "block_layout")]
+use taffy::{compute::compute_block_layout, LayoutBlockContainer};
+#[cfg(feature = "flexbox")]
+use taffy::{compute::compute_flexbox_layout, LayoutFlexboxContainer};
+#[cfg(feature = "grid")]
+use taffy::{compute::compute_grid_layout, LayoutGridContainer};
 use taffy::{
-    compute_block_layout, compute_cached_layout, compute_flexbox_layout, compute_grid_layout,
-    compute_hidden_layout, compute_leaf_layout, compute_root_layout, print_tree, round_layout,
-    AvailableSpace, Cache, CacheTree, Display, FlexDirection, Layout, LayoutBlockContainer,
-    LayoutFlexboxContainer, LayoutGridContainer, LayoutPartialTree, NodeId, PrintTree, RoundTree,
-    RunMode, Size, Style, TraversePartialTree, TraverseTree,
+    compute_cached_layout, compute_hidden_layout, compute_leaf_layout, compute_root_layout,
+    print_tree, round_layout, AvailableSpace, Cache, CacheTree, Display, FlexDirection, Layout,
+    LayoutPartialTree, NodeId, PrintTree, RoundTree, RunMode, Size, Style, TraversePartialTree,
+    TraverseTree,
 };
 
 pub trait NodeIdLike {
@@ -157,14 +162,12 @@ where
         Self: 'a;
 
     #[inline(always)]
-
     fn child_ids(&self, parent_node_id: NodeId) -> Self::ChildIter<'_> {
         let scope_id = parent_node_id.into_scope_id();
         ChildIter(self.composer.nodes[&scope_id].children.iter())
     }
 
     #[inline(always)]
-
     fn child_count(&self, parent_node_id: NodeId) -> usize {
         let scope_id = parent_node_id.into_scope_id();
         self.composer.nodes[&scope_id].children.len()
@@ -251,15 +254,19 @@ where
         match (num_children, display) {
             (_, Display::None) => "NONE",
             (0, _) => "LEAF",
+            #[cfg(feature = "block_layout")]
             (_, Display::Block) => "BLOCK",
+            #[cfg(feature = "flexbox")]
             (_, Display::Flex) => match node.style.flex_direction {
                 FlexDirection::Row | FlexDirection::RowReverse => "FLEX ROW",
                 FlexDirection::Column | FlexDirection::ColumnReverse => "FLEX COL",
             },
+            #[cfg(feature = "grid")]
             (_, Display::Grid) => "GRID",
         }
     }
 
+    #[inline(always)]
     fn get_final_layout(&self, node_id: NodeId) -> &Layout {
         if self.composer.context.use_rounding {
             &self.composer.nodes[&node_id.into_scope_id()]
@@ -296,6 +303,7 @@ where
             .style
     }
 
+    #[inline(always)]
     fn set_unrounded_layout(&mut self, node_id: NodeId, layout: &Layout) {
         self.composer
             .nodes
@@ -307,6 +315,7 @@ where
             .unrounded_layout = *layout;
     }
 
+    #[inline(always)]
     fn compute_child_layout(
         &mut self,
         node: NodeId,
@@ -336,8 +345,11 @@ where
             // Dispatch to a layout algorithm based on the node's display style and whether the node has children or not.
             match (display_mode, has_children) {
                 (Display::None, _) => compute_hidden_layout(tree, node),
+                #[cfg(feature = "block_layout")]
                 (Display::Block, true) => compute_block_layout(tree, node, inputs),
+                #[cfg(feature = "flexbox")]
                 (Display::Flex, true) => compute_flexbox_layout(tree, node, inputs),
+                #[cfg(feature = "grid")]
                 (Display::Grid, true) => compute_grid_layout(tree, node, inputs),
                 (_, false) => {
                     let data = tree
@@ -366,6 +378,7 @@ where
     }
 }
 
+#[cfg(feature = "block_layout")]
 impl<T, M> LayoutBlockContainer for TaffyTree<'_, T, M>
 where
     T: 'static,
@@ -392,6 +405,7 @@ where
     }
 }
 
+#[cfg(feature = "flexbox")]
 impl<T, M> LayoutFlexboxContainer for TaffyTree<'_, T, M>
 where
     T: 'static,
@@ -426,6 +440,7 @@ where
     }
 }
 
+#[cfg(feature = "grid")]
 impl<T, M> LayoutGridContainer for TaffyTree<'_, T, M>
 where
     T: 'static,
