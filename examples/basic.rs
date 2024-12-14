@@ -75,9 +75,9 @@ fn app(s: Scope<Root>) {
 
 fn main() {
     let mut recomposer = Composer::compose(app, TaffyConfig::default());
-    recomposer.compute_layout(Size {
+    let _ = recomposer.compute_layout(Size {
         height: AvailableSpace::Definite(100.0),
         width: AvailableSpace::Definite(100.0),
     });
-    recomposer.print_layout_tree();
+    let _ = recomposer.print_layout_tree();
 }

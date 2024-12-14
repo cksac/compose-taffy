@@ -502,6 +502,14 @@ where
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LayoutError {
+    /// The supplied scope was not found in the composer instance.
+    InvalidInputScope(ScopeId),
+}
+
+pub type LayoutResult = std::result::Result<(), LayoutError>;
+
 pub trait LayoutTree<NodeContext> {
     fn root(&self) -> ScopeId;
 
@@ -510,7 +518,8 @@ pub trait LayoutTree<NodeContext> {
         scope: ScopeId,
         available_space: Size<AvailableSpace>,
         measure_fn: MeasureFn,
-    ) where
+    ) -> LayoutResult
+    where
         MeasureFn: FnMut(
             Size<Option<f32>>,
             Size<AvailableSpace>,
@@ -520,17 +529,17 @@ pub trait LayoutTree<NodeContext> {
         ) -> Size<f32>;
 
     #[inline(always)]
-    fn compute_layout(&mut self, available_space: Size<AvailableSpace>) {
+    fn compute_layout(&mut self, available_space: Size<AvailableSpace>) -> LayoutResult {
         let scope = self.root();
-        self.compute_layout_with(scope, available_space, |_, _, _, _, _| Size::ZERO);
+        self.compute_layout_with(scope, available_space, |_, _, _, _, _| Size::ZERO)
     }
 
-    fn print_layout_tree_with(&mut self, scope: ScopeId);
+    fn print_layout_tree_with(&mut self, scope: ScopeId) -> LayoutResult;
 
     #[inline(always)]
-    fn print_layout_tree(&mut self) {
+    fn print_layout_tree(&mut self) -> LayoutResult {
         let scope = self.root();
-        self.print_layout_tree_with(scope);
+        self.print_layout_tree_with(scope)
     }
 }
 
@@ -548,7 +557,8 @@ where
         scope: ScopeId,
         available_space: Size<AvailableSpace>,
         measure_function: MeasureFn,
-    ) where
+    ) -> LayoutResult
+    where
         MeasureFn: FnMut(
             Size<Option<f32>>,
             Size<AvailableSpace>,
@@ -558,19 +568,27 @@ where
         ) -> Size<f32>,
     {
         self.with_composer_mut(|composer| {
+            if !composer.nodes.contains_key(&scope) {
+                return Err(LayoutError::InvalidInputScope(scope));
+            }
             let node_id = scope.into_node_id();
             let mut tree = TaffyTree::new(composer, measure_function);
             compute_root_layout(&mut tree, node_id, available_space);
             if tree.composer.context.use_rounding {
                 round_layout(&mut tree, node_id);
             }
-        });
+            Ok(())
+        })
     }
 
-    fn print_layout_tree_with(&mut self, scope: ScopeId) {
+    fn print_layout_tree_with(&mut self, scope: ScopeId) -> LayoutResult {
         self.with_composer_mut(|composer| {
+            if !composer.nodes.contains_key(&scope) {
+                return Err(LayoutError::InvalidInputScope(scope));
+            }
             let mut tree = TaffyTree::new(composer, |_, _, _, _, _| Size::ZERO);
             print_tree(&mut tree, scope.into_node_id());
-        });
+            Ok(())
+        })
     }
 }
