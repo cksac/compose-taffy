@@ -513,8 +513,6 @@ pub enum LayoutError {
 pub type LayoutResult = std::result::Result<(), LayoutError>;
 
 pub trait LayoutTree<NodeContext> {
-    fn root(&self) -> NodeKey;
-
     fn compute_layout_with<MeasureFn>(
         &mut self,
         node: NodeKey,
@@ -530,30 +528,17 @@ pub trait LayoutTree<NodeContext> {
             &Style,
         ) -> Size<f32>;
 
-    #[inline(always)]
-    fn compute_layout(&mut self, available_space: Size<AvailableSpace>) -> LayoutResult {
-        let node = self.root();
-        self.compute_layout_with(node, available_space, |_, _, _, _, _| Size::ZERO)
-    }
+    fn compute_layout(&mut self, available_space: Size<AvailableSpace>) -> LayoutResult;
 
     fn print_layout_tree_with(&mut self, node: NodeKey) -> LayoutResult;
 
-    #[inline(always)]
-    fn print_layout_tree(&mut self) -> LayoutResult {
-        let node = self.root();
-        self.print_layout_tree_with(node)
-    }
+    fn print_layout_tree(&mut self) -> LayoutResult;
 }
 
 impl<T> LayoutTree<T> for Recomposer<LayoutNode<T>>
 where
     T: 'static,
 {
-    #[inline(always)]
-    fn root(&self) -> NodeKey {
-        self.root_node()
-    }
-
     fn compute_layout_with<MeasureFn>(
         &mut self,
         node: NodeKey,
@@ -583,6 +568,12 @@ where
         })
     }
 
+    #[inline(always)]
+    fn compute_layout(&mut self, available_space: Size<AvailableSpace>) -> LayoutResult {
+        let node = self.root_node();
+        self.compute_layout_with(node, available_space, |_, _, _, _, _| Size::ZERO)
+    }
+
     fn print_layout_tree_with(&mut self, node: NodeKey) -> LayoutResult {
         self.with_composer_mut(|composer| {
             if !composer.nodes.contains_key(node) {
@@ -593,5 +584,11 @@ where
             print_tree(&mut tree, root);
             Ok(())
         })
+    }
+
+    #[inline(always)]
+    fn print_layout_tree(&mut self) -> LayoutResult {
+        let node = self.root_node();
+        self.print_layout_tree_with(node)
     }
 }
