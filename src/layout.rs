@@ -506,8 +506,8 @@ where
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LayoutError {
-    /// The supplied scope was not found in the composer instance.
-    InvalidInputScope(NodeKey),
+    /// The supplied node was not found in the composer instance.
+    InvalidInputNode(NodeKey),
 }
 
 pub type LayoutResult = std::result::Result<(), LayoutError>;
@@ -556,7 +556,7 @@ where
     {
         self.with_composer_mut(|composer| {
             if !composer.nodes.contains_key(node) {
-                return Err(LayoutError::InvalidInputScope(node));
+                return Err(LayoutError::InvalidInputNode(node));
             }
             let node_id = node.into_node_id();
             let mut tree = TaffyTree::new(composer, measure_function);
@@ -577,7 +577,7 @@ where
     fn print_layout_tree_with(&mut self, node: NodeKey) -> LayoutResult {
         self.with_composer_mut(|composer| {
             if !composer.nodes.contains_key(node) {
-                return Err(LayoutError::InvalidInputScope(node));
+                return Err(LayoutError::InvalidInputNode(node));
             }
             let mut tree = TaffyTree::new(composer, |_, _, _, _, _| Size::ZERO);
             let root = node.into_node_id();
