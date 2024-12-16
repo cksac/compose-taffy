@@ -35,9 +35,3 @@ alloc = ["taffy/alloc"]
 
 [[example]]
 name = "basic"
-features = [
-    "flexbox",
-    "grid",
-    "block_layout",
-    "content_size",
-]

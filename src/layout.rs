@@ -22,8 +22,7 @@ where
 {
     #[inline(always)]
     fn into_node_id(self) -> NodeId {
-        let val: u64 = self.into();
-        NodeId::new(val)
+        NodeId::new(self.into())
     }
 }
 
@@ -37,8 +36,7 @@ where
 {
     #[inline(always)]
     fn into_node_key(self) -> NodeKey {
-        let val: u64 = self.into();
-        NodeKey::new(val)
+        NodeKey::new(self.into())
     }
 }
 
@@ -164,20 +162,20 @@ where
         Self: 'a;
 
     #[inline(always)]
-    fn child_ids(&self, parent_node_id: NodeId) -> Self::ChildIter<'_> {
-        let node_key = parent_node_id.into_node_key();
+    fn child_ids(&self, node_id: NodeId) -> Self::ChildIter<'_> {
+        let node_key = node_id.into_node_key();
         ChildIter(self.composer.nodes[node_key].children.iter())
     }
 
     #[inline(always)]
-    fn child_count(&self, parent_node_id: NodeId) -> usize {
-        let node_key = parent_node_id.into_node_key();
+    fn child_count(&self, node_id: NodeId) -> usize {
+        let node_key = node_id.into_node_key();
         self.composer.nodes[node_key].children.len()
     }
 
     #[inline(always)]
-    fn get_child_id(&self, parent_node_id: NodeId, child_index: usize) -> NodeId {
-        let node_key = parent_node_id.into_node_key();
+    fn get_child_id(&self, node_id: NodeId, child_index: usize) -> NodeId {
+        let node_key = node_id.into_node_key();
         self.composer.nodes[node_key].children[child_index].into_node_id()
     }
 }
@@ -320,13 +318,13 @@ where
     #[inline(always)]
     fn compute_child_layout(
         &mut self,
-        node: NodeId,
+        node_id: NodeId,
         inputs: taffy::LayoutInput,
     ) -> taffy::LayoutOutput {
         // If RunMode is PerformHiddenLayout then this indicates that an ancestor node is `Display::None`
         // and thus that we should lay out this node using hidden layout regardless of it's own display style.
         if inputs.run_mode == RunMode::PerformHiddenLayout {
-            return compute_hidden_layout(self, node);
+            return compute_hidden_layout(self, node_id);
         }
 
         // We run the following wrapped in "compute_cached_layout", which will check the cache for an entry matching the node and inputs and:
@@ -334,25 +332,25 @@ where
         //   - Else call the passed closure (below) to compute the result
         //
         // If there was no cache match and a new result needs to be computed then that result will be added to the cache
-        compute_cached_layout(self, node, inputs, |tree, node, inputs| {
-            let node_key = node.into_node_key();
+        compute_cached_layout(self, node_id, inputs, |tree, node_id, inputs| {
+            let node_key = node_id.into_node_key();
             let display_mode = tree.composer.nodes[node_key]
                 .data
                 .as_ref()
                 .unwrap()
                 .style
                 .display;
-            let has_children = tree.child_count(node) > 0;
+            let has_children = tree.child_count(node_id) > 0;
 
             // Dispatch to a layout algorithm based on the node's display style and whether the node has children or not.
             match (display_mode, has_children) {
-                (Display::None, _) => compute_hidden_layout(tree, node),
+                (Display::None, _) => compute_hidden_layout(tree, node_id),
                 #[cfg(feature = "block_layout")]
-                (Display::Block, true) => compute_block_layout(tree, node, inputs),
+                (Display::Block, true) => compute_block_layout(tree, node_id, inputs),
                 #[cfg(feature = "flexbox")]
-                (Display::Flex, true) => compute_flexbox_layout(tree, node, inputs),
+                (Display::Flex, true) => compute_flexbox_layout(tree, node_id, inputs),
                 #[cfg(feature = "grid")]
-                (Display::Grid, true) => compute_grid_layout(tree, node, inputs),
+                (Display::Grid, true) => compute_grid_layout(tree, node_id, inputs),
                 (_, false) => {
                     let data = tree
                         .composer
@@ -368,7 +366,7 @@ where
                         (tree.measure_function)(
                             known_dimensions,
                             available_space,
-                            node,
+                            node_id,
                             node_context,
                             style,
                         )
@@ -402,8 +400,8 @@ where
     }
 
     #[inline(always)]
-    fn get_block_child_style(&self, child_node_id: NodeId) -> Self::BlockItemStyle<'_> {
-        self.get_core_container_style(child_node_id)
+    fn get_block_child_style(&self, node_id: NodeId) -> Self::BlockItemStyle<'_> {
+        self.get_core_container_style(node_id)
     }
 }
 
@@ -433,8 +431,8 @@ where
     }
 
     #[inline(always)]
-    fn get_flexbox_child_style(&self, child_node_id: NodeId) -> Self::FlexboxItemStyle<'_> {
-        &self.composer.nodes[child_node_id.into_node_key()]
+    fn get_flexbox_child_style(&self, node_id: NodeId) -> Self::FlexboxItemStyle<'_> {
+        &self.composer.nodes[node_id.into_node_key()]
             .data
             .as_ref()
             .unwrap()
@@ -468,8 +466,8 @@ where
     }
 
     #[inline(always)]
-    fn get_grid_child_style(&self, child_node_id: NodeId) -> Self::GridItemStyle<'_> {
-        &self.composer.nodes[child_node_id.into_node_key()]
+    fn get_grid_child_style(&self, node_id: NodeId) -> Self::GridItemStyle<'_> {
+        &self.composer.nodes[node_id.into_node_key()]
             .data
             .as_ref()
             .unwrap()
@@ -515,7 +513,7 @@ pub type LayoutResult = std::result::Result<(), LayoutError>;
 pub trait LayoutTree<NodeContext> {
     fn compute_layout_with<MeasureFn>(
         &mut self,
-        node: NodeKey,
+        node_key: NodeKey,
         available_space: Size<AvailableSpace>,
         measure_fn: MeasureFn,
     ) -> LayoutResult
@@ -530,7 +528,7 @@ pub trait LayoutTree<NodeContext> {
 
     fn compute_layout(&mut self, available_space: Size<AvailableSpace>) -> LayoutResult;
 
-    fn print_layout_tree_with(&mut self, node: NodeKey) -> LayoutResult;
+    fn print_layout_tree_with(&mut self, node_key: NodeKey) -> LayoutResult;
 
     fn print_layout_tree(&mut self) -> LayoutResult;
 }
@@ -541,7 +539,7 @@ where
 {
     fn compute_layout_with<MeasureFn>(
         &mut self,
-        node: NodeKey,
+        node_key: NodeKey,
         available_space: Size<AvailableSpace>,
         measure_function: MeasureFn,
     ) -> LayoutResult
@@ -555,10 +553,10 @@ where
         ) -> Size<f32>,
     {
         self.with_composer_mut(|composer| {
-            if !composer.nodes.contains_key(node) {
-                return Err(LayoutError::InvalidInputNode(node));
+            if !composer.nodes.contains_key(node_key) {
+                return Err(LayoutError::InvalidInputNode(node_key));
             }
-            let node_id = node.into_node_id();
+            let node_id = node_key.into_node_id();
             let mut tree = TaffyTree::new(composer, measure_function);
             compute_root_layout(&mut tree, node_id, available_space);
             if tree.composer.context.use_rounding {
@@ -570,25 +568,25 @@ where
 
     #[inline(always)]
     fn compute_layout(&mut self, available_space: Size<AvailableSpace>) -> LayoutResult {
-        let node = self.root_node();
-        self.compute_layout_with(node, available_space, |_, _, _, _, _| Size::ZERO)
+        let node_key = self.root_node_key();
+        self.compute_layout_with(node_key, available_space, |_, _, _, _, _| Size::ZERO)
     }
 
-    fn print_layout_tree_with(&mut self, node: NodeKey) -> LayoutResult {
+    fn print_layout_tree_with(&mut self, node_key: NodeKey) -> LayoutResult {
         self.with_composer_mut(|composer| {
-            if !composer.nodes.contains_key(node) {
-                return Err(LayoutError::InvalidInputNode(node));
+            if !composer.nodes.contains_key(node_key) {
+                return Err(LayoutError::InvalidInputNode(node_key));
             }
             let mut tree = TaffyTree::new(composer, |_, _, _, _, _| Size::ZERO);
-            let root = node.into_node_id();
-            print_tree(&mut tree, root);
+            let node_id = node_key.into_node_id();
+            print_tree(&mut tree, node_id);
             Ok(())
         })
     }
 
     #[inline(always)]
     fn print_layout_tree(&mut self) -> LayoutResult {
-        let node = self.root_node();
-        self.print_layout_tree_with(node)
+        let node_key = self.root_node_key();
+        self.print_layout_tree_with(node_key)
     }
 }

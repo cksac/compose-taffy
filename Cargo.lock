@@ -28,8 +28,8 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "compose-rt"
-version = "0.13.0"
-source = "git+https://github.com/cksac/compose-rt#8c21fae2ec10278e1ada337bdc54a5ab0ac9952b"
+version = "0.14.0"
+source = "git+https://github.com/cksac/compose-rt#16ddb2c9ab42f62d2e82b3d3c526ed10f79088a2"
 dependencies = [
  "generational-box",
  "rustc-hash",
