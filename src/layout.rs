@@ -1,4 +1,4 @@
-use compose_rt::{ComposeNode, Composer, Recomposer, ScopeId};
+use compose_rt::{ComposeNode, Composer, NodeKey, Recomposer};
 #[cfg(feature = "block_layout")]
 use taffy::{compute::compute_block_layout, LayoutBlockContainer};
 #[cfg(feature = "flexbox")]
@@ -22,21 +22,23 @@ where
 {
     #[inline(always)]
     fn into_node_id(self) -> NodeId {
-        NodeId::new(self.into())
+        let val: u64 = self.into();
+        NodeId::new(val)
     }
 }
 
-pub trait ScopeIdLike {
-    fn into_scope_id(self) -> ScopeId;
+pub trait NodeKeyLike {
+    fn into_node_key(self) -> NodeKey;
 }
 
-impl<T> ScopeIdLike for T
+impl<T> NodeKeyLike for T
 where
     T: Into<u64>,
 {
     #[inline(always)]
-    fn into_scope_id(self) -> ScopeId {
-        ScopeId::with(self.into())
+    fn into_node_key(self) -> NodeKey {
+        let val: u64 = self.into();
+        NodeKey::new(val)
     }
 }
 
@@ -120,7 +122,7 @@ where
     }
 }
 
-pub struct ChildIter<'a>(core::slice::Iter<'a, ScopeId>);
+pub struct ChildIter<'a>(core::slice::Iter<'a, NodeKey>);
 impl Iterator for ChildIter<'_> {
     type Item = NodeId;
 
@@ -163,20 +165,20 @@ where
 
     #[inline(always)]
     fn child_ids(&self, parent_node_id: NodeId) -> Self::ChildIter<'_> {
-        let scope_id = parent_node_id.into_scope_id();
-        ChildIter(self.composer.nodes[&scope_id].children.iter())
+        let node_key = parent_node_id.into_node_key();
+        ChildIter(self.composer.nodes[node_key].children.iter())
     }
 
     #[inline(always)]
     fn child_count(&self, parent_node_id: NodeId) -> usize {
-        let scope_id = parent_node_id.into_scope_id();
-        self.composer.nodes[&scope_id].children.len()
+        let node_key = parent_node_id.into_node_key();
+        self.composer.nodes[node_key].children.len()
     }
 
     #[inline(always)]
     fn get_child_id(&self, parent_node_id: NodeId, child_index: usize) -> NodeId {
-        let scope_id = parent_node_id.into_scope_id();
-        NodeId::new(self.composer.nodes[&scope_id].children[child_index].into())
+        let node_key = parent_node_id.into_node_key();
+        self.composer.nodes[node_key].children[child_index].into_node_id()
     }
 }
 
@@ -197,7 +199,7 @@ where
         available_space: taffy::Size<taffy::AvailableSpace>,
         run_mode: taffy::RunMode,
     ) -> Option<taffy::LayoutOutput> {
-        self.composer.nodes[&node_id.into_scope_id()]
+        self.composer.nodes[node_id.into_node_key()]
             .data
             .as_ref()
             .unwrap()
@@ -215,7 +217,7 @@ where
     ) {
         self.composer
             .nodes
-            .get_mut(&node_id.into_scope_id())
+            .get_mut(node_id.into_node_key())
             .unwrap()
             .data
             .as_mut()
@@ -227,7 +229,7 @@ where
     fn cache_clear(&mut self, node_id: NodeId) {
         self.composer
             .nodes
-            .get_mut(&node_id.into_scope_id())
+            .get_mut(node_id.into_node_key())
             .unwrap()
             .data
             .as_mut()
@@ -244,7 +246,7 @@ where
 {
     #[inline(always)]
     fn get_debug_label(&self, node_id: NodeId) -> &'static str {
-        let node = self.composer.nodes[&node_id.into_scope_id()]
+        let node = self.composer.nodes[node_id.into_node_key()]
             .data
             .as_ref()
             .unwrap();
@@ -269,13 +271,13 @@ where
     #[inline(always)]
     fn get_final_layout(&self, node_id: NodeId) -> &Layout {
         if self.composer.context.use_rounding {
-            &self.composer.nodes[&node_id.into_scope_id()]
+            &self.composer.nodes[node_id.into_node_key()]
                 .data
                 .as_ref()
                 .unwrap()
                 .final_layout
         } else {
-            &self.composer.nodes[&node_id.into_scope_id()]
+            &self.composer.nodes[node_id.into_node_key()]
                 .data
                 .as_ref()
                 .unwrap()
@@ -296,7 +298,7 @@ where
 
     #[inline(always)]
     fn get_core_container_style(&self, node_id: NodeId) -> Self::CoreContainerStyle<'_> {
-        &self.composer.nodes[&node_id.into_scope_id()]
+        &self.composer.nodes[node_id.into_node_key()]
             .data
             .as_ref()
             .unwrap()
@@ -307,7 +309,7 @@ where
     fn set_unrounded_layout(&mut self, node_id: NodeId, layout: &Layout) {
         self.composer
             .nodes
-            .get_mut(&node_id.into_scope_id())
+            .get_mut(node_id.into_node_key())
             .unwrap()
             .data
             .as_mut()
@@ -333,8 +335,8 @@ where
         //
         // If there was no cache match and a new result needs to be computed then that result will be added to the cache
         compute_cached_layout(self, node, inputs, |tree, node, inputs| {
-            let scope_id = node.into_scope_id();
-            let display_mode = tree.composer.nodes[&scope_id]
+            let node_key = node.into_node_key();
+            let display_mode = tree.composer.nodes[node_key]
                 .data
                 .as_ref()
                 .unwrap()
@@ -355,7 +357,7 @@ where
                     let data = tree
                         .composer
                         .nodes
-                        .get_mut(&scope_id)
+                        .get_mut(node_key)
                         .unwrap()
                         .data
                         .as_mut()
@@ -423,7 +425,7 @@ where
 
     #[inline(always)]
     fn get_flexbox_container_style(&self, node_id: NodeId) -> Self::FlexboxContainerStyle<'_> {
-        &self.composer.nodes[&node_id.into_scope_id()]
+        &self.composer.nodes[node_id.into_node_key()]
             .data
             .as_ref()
             .unwrap()
@@ -432,7 +434,7 @@ where
 
     #[inline(always)]
     fn get_flexbox_child_style(&self, child_node_id: NodeId) -> Self::FlexboxItemStyle<'_> {
-        &self.composer.nodes[&child_node_id.into_scope_id()]
+        &self.composer.nodes[child_node_id.into_node_key()]
             .data
             .as_ref()
             .unwrap()
@@ -458,7 +460,7 @@ where
 
     #[inline(always)]
     fn get_grid_container_style(&self, node_id: NodeId) -> Self::GridContainerStyle<'_> {
-        &self.composer.nodes[&node_id.into_scope_id()]
+        &self.composer.nodes[node_id.into_node_key()]
             .data
             .as_ref()
             .unwrap()
@@ -467,7 +469,7 @@ where
 
     #[inline(always)]
     fn get_grid_child_style(&self, child_node_id: NodeId) -> Self::GridItemStyle<'_> {
-        &self.composer.nodes[&child_node_id.into_scope_id()]
+        &self.composer.nodes[child_node_id.into_node_key()]
             .data
             .as_ref()
             .unwrap()
@@ -482,7 +484,7 @@ where
 {
     #[inline(always)]
     fn get_unrounded_layout(&self, node_id: NodeId) -> &Layout {
-        &self.composer.nodes[&node_id.into_scope_id()]
+        &self.composer.nodes[node_id.into_node_key()]
             .data
             .as_ref()
             .unwrap()
@@ -493,7 +495,7 @@ where
     fn set_final_layout(&mut self, node_id: NodeId, layout: &Layout) {
         self.composer
             .nodes
-            .get_mut(&node_id.into_scope_id())
+            .get_mut(node_id.into_node_key())
             .unwrap()
             .data
             .as_mut()
@@ -505,17 +507,17 @@ where
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LayoutError {
     /// The supplied scope was not found in the composer instance.
-    InvalidInputScope(ScopeId),
+    InvalidInputScope(NodeKey),
 }
 
 pub type LayoutResult = std::result::Result<(), LayoutError>;
 
 pub trait LayoutTree<NodeContext> {
-    fn root(&self) -> ScopeId;
+    fn root(&self) -> NodeKey;
 
     fn compute_layout_with<MeasureFn>(
         &mut self,
-        scope: ScopeId,
+        node: NodeKey,
         available_space: Size<AvailableSpace>,
         measure_fn: MeasureFn,
     ) -> LayoutResult
@@ -530,16 +532,16 @@ pub trait LayoutTree<NodeContext> {
 
     #[inline(always)]
     fn compute_layout(&mut self, available_space: Size<AvailableSpace>) -> LayoutResult {
-        let scope = self.root();
-        self.compute_layout_with(scope, available_space, |_, _, _, _, _| Size::ZERO)
+        let node = self.root();
+        self.compute_layout_with(node, available_space, |_, _, _, _, _| Size::ZERO)
     }
 
-    fn print_layout_tree_with(&mut self, scope: ScopeId) -> LayoutResult;
+    fn print_layout_tree_with(&mut self, node: NodeKey) -> LayoutResult;
 
     #[inline(always)]
     fn print_layout_tree(&mut self) -> LayoutResult {
-        let scope = self.root();
-        self.print_layout_tree_with(scope)
+        let node = self.root();
+        self.print_layout_tree_with(node)
     }
 }
 
@@ -548,13 +550,13 @@ where
     T: 'static,
 {
     #[inline(always)]
-    fn root(&self) -> ScopeId {
-        self.root_scope()
+    fn root(&self) -> NodeKey {
+        self.root_node()
     }
 
     fn compute_layout_with<MeasureFn>(
         &mut self,
-        scope: ScopeId,
+        node: NodeKey,
         available_space: Size<AvailableSpace>,
         measure_function: MeasureFn,
     ) -> LayoutResult
@@ -568,10 +570,10 @@ where
         ) -> Size<f32>,
     {
         self.with_composer_mut(|composer| {
-            if !composer.nodes.contains_key(&scope) {
-                return Err(LayoutError::InvalidInputScope(scope));
+            if !composer.nodes.contains_key(node) {
+                return Err(LayoutError::InvalidInputScope(node));
             }
-            let node_id = scope.into_node_id();
+            let node_id = node.into_node_id();
             let mut tree = TaffyTree::new(composer, measure_function);
             compute_root_layout(&mut tree, node_id, available_space);
             if tree.composer.context.use_rounding {
@@ -581,13 +583,14 @@ where
         })
     }
 
-    fn print_layout_tree_with(&mut self, scope: ScopeId) -> LayoutResult {
+    fn print_layout_tree_with(&mut self, node: NodeKey) -> LayoutResult {
         self.with_composer_mut(|composer| {
-            if !composer.nodes.contains_key(&scope) {
-                return Err(LayoutError::InvalidInputScope(scope));
+            if !composer.nodes.contains_key(node) {
+                return Err(LayoutError::InvalidInputScope(node));
             }
             let mut tree = TaffyTree::new(composer, |_, _, _, _, _| Size::ZERO);
-            print_tree(&mut tree, scope.into_node_id());
+            let root = node.into_node_id();
+            print_tree(&mut tree, root);
             Ok(())
         })
     }
