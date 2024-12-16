@@ -16,13 +16,10 @@ pub trait NodeIdLike {
     fn into_node_id(self) -> NodeId;
 }
 
-impl<T> NodeIdLike for T
-where
-    T: Into<u64>,
-{
+impl NodeIdLike for NodeKey {
     #[inline(always)]
     fn into_node_id(self) -> NodeId {
-        NodeId::new(self.into())
+        NodeId::from(self)
     }
 }
 
@@ -30,13 +27,10 @@ pub trait NodeKeyLike {
     fn into_node_key(self) -> NodeKey;
 }
 
-impl<T> NodeKeyLike for T
-where
-    T: Into<u64>,
-{
+impl NodeKeyLike for NodeId {
     #[inline(always)]
     fn into_node_key(self) -> NodeKey {
-        NodeKey::new(self.into())
+        self.into()
     }
 }
 
@@ -126,6 +120,95 @@ impl Iterator for ChildIter<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.0.next().copied().map(NodeIdLike::into_node_id)
+    }
+}
+
+pub struct TaffyTreeView<'a, T>
+where
+    T: 'static,
+{
+    composer: &'a Composer<LayoutNode<T>>,
+}
+
+impl<'a, T> TaffyTreeView<'a, T>
+where
+    T: 'static,
+{
+    pub fn new(composer: &'a Composer<LayoutNode<T>>) -> Self {
+        Self { composer }
+    }
+}
+
+impl<T> TraversePartialTree for TaffyTreeView<'_, T> {
+    type ChildIter<'a>
+        = ChildIter<'a>
+    where
+        Self: 'a;
+
+    #[inline(always)]
+    fn child_ids(&self, node_id: NodeId) -> Self::ChildIter<'_> {
+        let node_key = node_id.into_node_key();
+        ChildIter(self.composer.nodes[node_key].children.iter())
+    }
+
+    #[inline(always)]
+    fn child_count(&self, node_id: NodeId) -> usize {
+        let node_key = node_id.into_node_key();
+        self.composer.nodes[node_key].children.len()
+    }
+
+    #[inline(always)]
+    fn get_child_id(&self, node_id: NodeId, child_index: usize) -> NodeId {
+        let node_key = node_id.into_node_key();
+        self.composer.nodes[node_key].children[child_index].into_node_id()
+    }
+}
+
+impl<T> TraverseTree for TaffyTreeView<'_, T> {}
+
+impl<T> PrintTree for TaffyTreeView<'_, T>
+where
+    T: 'static,
+{
+    #[inline(always)]
+    fn get_debug_label(&self, node_id: NodeId) -> &'static str {
+        let node = self.composer.nodes[node_id.into_node_key()]
+            .data
+            .as_ref()
+            .unwrap();
+        let display = node.style.display;
+        let num_children = self.child_count(node_id);
+
+        match (num_children, display) {
+            (_, Display::None) => "NONE",
+            (0, _) => "LEAF",
+            #[cfg(feature = "block_layout")]
+            (_, Display::Block) => "BLOCK",
+            #[cfg(feature = "flexbox")]
+            (_, Display::Flex) => match node.style.flex_direction {
+                FlexDirection::Row | FlexDirection::RowReverse => "FLEX ROW",
+                FlexDirection::Column | FlexDirection::ColumnReverse => "FLEX COL",
+            },
+            #[cfg(feature = "grid")]
+            (_, Display::Grid) => "GRID",
+        }
+    }
+
+    #[inline(always)]
+    fn get_final_layout(&self, node_id: NodeId) -> &Layout {
+        if self.composer.context.use_rounding {
+            &self.composer.nodes[node_id.into_node_key()]
+                .data
+                .as_ref()
+                .unwrap()
+                .final_layout
+        } else {
+            &self.composer.nodes[node_id.into_node_key()]
+                .data
+                .as_ref()
+                .unwrap()
+                .unrounded_layout
+        }
     }
 }
 
@@ -513,8 +596,8 @@ pub type LayoutResult = std::result::Result<(), LayoutError>;
 pub trait LayoutTree<NodeContext> {
     fn compute_layout_with<MeasureFn>(
         &mut self,
-        node_key: NodeKey,
         available_space: Size<AvailableSpace>,
+        node_key: NodeKey,
         measure_fn: MeasureFn,
     ) -> LayoutResult
     where
@@ -528,9 +611,9 @@ pub trait LayoutTree<NodeContext> {
 
     fn compute_layout(&mut self, available_space: Size<AvailableSpace>) -> LayoutResult;
 
-    fn print_layout_tree_with(&mut self, node_key: NodeKey) -> LayoutResult;
+    fn print_layout_tree_with(&self, node_key: NodeKey) -> LayoutResult;
 
-    fn print_layout_tree(&mut self) -> LayoutResult;
+    fn print_layout_tree(&self) -> LayoutResult;
 }
 
 impl<T> LayoutTree<T> for Recomposer<LayoutNode<T>>
@@ -539,8 +622,8 @@ where
 {
     fn compute_layout_with<MeasureFn>(
         &mut self,
-        node_key: NodeKey,
         available_space: Size<AvailableSpace>,
+        node_key: NodeKey,
         measure_function: MeasureFn,
     ) -> LayoutResult
     where
@@ -553,7 +636,7 @@ where
         ) -> Size<f32>,
     {
         self.with_composer_mut(|composer| {
-            if !composer.nodes.contains_key(node_key) {
+            if !composer.nodes.contains(node_key) {
                 return Err(LayoutError::InvalidInputNode(node_key));
             }
             let node_id = node_key.into_node_id();
@@ -569,23 +652,23 @@ where
     #[inline(always)]
     fn compute_layout(&mut self, available_space: Size<AvailableSpace>) -> LayoutResult {
         let node_key = self.root_node_key();
-        self.compute_layout_with(node_key, available_space, |_, _, _, _, _| Size::ZERO)
+        self.compute_layout_with(available_space, node_key, |_, _, _, _, _| Size::ZERO)
     }
 
-    fn print_layout_tree_with(&mut self, node_key: NodeKey) -> LayoutResult {
-        self.with_composer_mut(|composer| {
-            if !composer.nodes.contains_key(node_key) {
+    fn print_layout_tree_with(&self, node_key: NodeKey) -> LayoutResult {
+        self.with_composer(|composer| {
+            if !composer.nodes.contains(node_key) {
                 return Err(LayoutError::InvalidInputNode(node_key));
             }
-            let mut tree = TaffyTree::new(composer, |_, _, _, _, _| Size::ZERO);
             let node_id = node_key.into_node_id();
-            print_tree(&mut tree, node_id);
+            let tree = TaffyTreeView::new(composer);
+            print_tree(&tree, node_id);
             Ok(())
         })
     }
 
     #[inline(always)]
-    fn print_layout_tree(&mut self) -> LayoutResult {
+    fn print_layout_tree(&self) -> LayoutResult {
         let node_key = self.root_node_key();
         self.print_layout_tree_with(node_key)
     }

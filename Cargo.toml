@@ -2,9 +2,17 @@
 name = "compose-taffy"
 version = "0.1.0"
 edition = "2021"
+authors = ["cksac <cs.cksac@gmail.com>"]
+description = "A layout tree implementation using taffy and compose-rt crate."
+categories = ["caching", "gui", "data-structures"]
+keywords = ["layout", "tree", "gui"]
+license = "MIT/Apache-2.0"
+readme = "README.md"
+repository = "https://github.com/cksac/compose-taffy"
+homepage = "https://github.com/cksac/compose-taffy"
 
 [dependencies]
-compose-rt = { git = "https://github.com/cksac/compose-rt" }
+compose-rt = "0.15"
 taffy = { version = "0.7", default-features = false, features = ["std"] }
 
 [features]

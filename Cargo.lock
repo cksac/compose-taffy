@@ -28,12 +28,13 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "compose-rt"
-version = "0.14.0"
-source = "git+https://github.com/cksac/compose-rt#16ddb2c9ab42f62d2e82b3d3c526ed10f79088a2"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "215aa3cb524528397fdea4185d675bd95555400a6b914d699d7e38325593d50e"
 dependencies = [
  "generational-box",
  "rustc-hash",
- "slotmap",
+ "slab",
 ]
 
 [[package]]
@@ -164,6 +165,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "slab"
+version = "0.4.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f92a496fb766b417c996b9c5e57daf2f7ad3b0bebe1ccfca4856390e3d3bb67"
+dependencies = [
+ "autocfg",
 ]
 
 [[package]]
