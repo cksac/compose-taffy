@@ -7,9 +7,9 @@ use taffy::{compute::compute_flexbox_layout, LayoutFlexboxContainer};
 use taffy::{compute::compute_grid_layout, LayoutGridContainer};
 use taffy::{
     compute_cached_layout, compute_hidden_layout, compute_leaf_layout, compute_root_layout,
-    print_tree, round_layout, AvailableSpace, Cache, CacheTree, Display, FlexDirection, Layout,
-    LayoutPartialTree, NodeId, PrintTree, RoundTree, RunMode, Size, Style, TraversePartialTree,
-    TraverseTree,
+    print_tree, round_layout, AvailableSpace, CacheTree, Display, FlexDirection,
+    FlexboxContainerStyle, Layout, LayoutPartialTree, NodeId, PrintTree, RoundTree, RunMode, Size,
+    TraversePartialTree, TraverseTree,
 };
 
 pub trait NodeIdLike {
@@ -34,84 +34,78 @@ impl NodeKeyLike for NodeId {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct TaffyConfig {
-    /// Whether to round layout values
-    pub use_rounding: bool,
+pub trait TaffyConfig {
+    fn use_rounding(&self) -> bool;
 }
 
-impl Default for TaffyConfig {
-    fn default() -> Self {
-        Self { use_rounding: true }
-    }
-}
+pub trait TaffyNode: ComposeNode + 'static {
+    type NodeContext;
 
-impl TaffyConfig {
-    pub fn new() -> Self {
-        Self::default()
-    }
+    /// The style type representing the core container styles that all containers should have
+    /// Used when laying out the root node of a tree
+    type CoreContainerStyle: taffy::CoreStyle;
 
-    pub fn with_rounding(mut self, use_rounding: bool) -> Self {
-        self.use_rounding = use_rounding;
-        self
-    }
+    /// The style type representing the CSS Block container's styles
+    type BlockContainerStyle<'a>: taffy::BlockContainerStyle
+    where
+        Self: 'a;
+    /// The style type representing each CSS Block item's styles
+    type BlockItemStyle<'a>: taffy::BlockItemStyle
+    where
+        Self: 'a;
 
-    pub fn enable_rounding(&mut self) {
-        self.use_rounding = true;
-    }
+    /// The style type representing the Flexbox container's styles
+    type FlexboxContainerStyle<'a>: taffy::FlexboxContainerStyle
+    where
+        Self: 'a;
+    /// The style type representing each Flexbox item's styles
+    type FlexboxItemStyle<'a>: taffy::FlexboxItemStyle
+    where
+        Self: 'a;
 
-    pub fn disable_rounding(&mut self) {
-        self.use_rounding = false;
-    }
-}
+    /// The style type representing the CSS Grid container's styles
+    type GridContainerStyle<'a>: taffy::GridContainerStyle
+    where
+        Self: 'a;
 
-#[derive(Debug, Clone)]
-pub struct LayoutNode<T>
-where
-    T: 'static,
-{
-    pub style: Style,
-    pub unrounded_layout: Layout,
-    pub final_layout: Layout,
-    pub cache: Cache,
-    pub context: Option<T>,
-}
+    /// The style type representing each CSS Grid item's styles
+    type GridItemStyle<'a>: taffy::GridItemStyle
+    where
+        Self: 'a;
 
-impl<T> ComposeNode for LayoutNode<T>
-where
-    T: 'static,
-{
-    type Context = TaffyConfig;
-}
+    fn get_node_context(&self) -> Option<&Self::NodeContext>;
+    fn get_node_context_mut(&mut self) -> Option<&mut Self::NodeContext>;
 
-impl<T> LayoutNode<T>
-where
-    T: 'static,
-{
-    pub fn new(style: Style) -> Self {
-        Self {
-            style,
-            unrounded_layout: Layout::new(),
-            final_layout: Layout::new(),
-            cache: Cache::new(),
-            context: None,
-        }
-    }
+    fn get_node_context_mut_with_style(
+        &mut self,
+    ) -> (Option<&mut Self::NodeContext>, &Self::CoreContainerStyle);
 
-    pub fn with_context(style: Style, context: T) -> Self {
-        Self {
-            style,
-            unrounded_layout: Layout::new(),
-            final_layout: Layout::new(),
-            cache: Cache::new(),
-            context: Some(context),
-        }
-    }
-
-    #[inline]
-    pub fn mark_dirty(&mut self) {
-        self.cache.clear()
-    }
+    fn get_display(&self) -> Display;
+    fn get_final_layout(&self) -> &Layout;
+    fn set_final_layout(&mut self, layout: &Layout);
+    fn get_unrounded_layout(&self) -> &Layout;
+    fn set_unrounded_layout(&mut self, layout: &Layout);
+    fn cache_get(
+        &self,
+        known_dimensions: taffy::Size<Option<f32>>,
+        available_space: taffy::Size<taffy::AvailableSpace>,
+        run_mode: taffy::RunMode,
+    ) -> Option<taffy::LayoutOutput>;
+    fn cache_store(
+        &mut self,
+        known_dimensions: taffy::Size<Option<f32>>,
+        available_space: taffy::Size<taffy::AvailableSpace>,
+        run_mode: taffy::RunMode,
+        layout_output: taffy::LayoutOutput,
+    );
+    fn cache_clear(&mut self);
+    fn get_core_container_style(&self) -> &Self::CoreContainerStyle;
+    fn get_block_container_style(&self) -> Self::BlockContainerStyle<'_>;
+    fn get_block_item_style(&self) -> Self::BlockItemStyle<'_>;
+    fn get_flexbox_container_style(&self) -> Self::FlexboxContainerStyle<'_>;
+    fn get_flexbox_item_style(&self) -> Self::FlexboxItemStyle<'_>;
+    fn get_grid_container_style(&self) -> Self::GridContainerStyle<'_>;
+    fn get_grid_item_style(&self) -> Self::GridItemStyle<'_>;
 }
 
 pub struct ChildIter<'a>(core::slice::Iter<'a, NodeKey>);
@@ -125,21 +119,27 @@ impl Iterator for ChildIter<'_> {
 
 pub struct TaffyTreeView<'a, T>
 where
-    T: 'static,
+    T: TaffyNode,
+    T::Context: TaffyConfig,
 {
-    composer: &'a Composer<LayoutNode<T>>,
+    composer: &'a Composer<T>,
 }
 
 impl<'a, T> TaffyTreeView<'a, T>
 where
-    T: 'static,
+    T: TaffyNode,
+    T::Context: TaffyConfig,
 {
-    pub fn new(composer: &'a Composer<LayoutNode<T>>) -> Self {
+    pub fn new(composer: &'a Composer<T>) -> Self {
         Self { composer }
     }
 }
 
-impl<T> TraversePartialTree for TaffyTreeView<'_, T> {
+impl<T> TraversePartialTree for TaffyTreeView<'_, T>
+where
+    T: TaffyNode,
+    T::Context: TaffyConfig,
+{
     type ChildIter<'a>
         = ChildIter<'a>
     where
@@ -164,11 +164,17 @@ impl<T> TraversePartialTree for TaffyTreeView<'_, T> {
     }
 }
 
-impl<T> TraverseTree for TaffyTreeView<'_, T> {}
+impl<T> TraverseTree for TaffyTreeView<'_, T>
+where
+    T: TaffyNode,
+    T::Context: TaffyConfig,
+{
+}
 
 impl<T> PrintTree for TaffyTreeView<'_, T>
 where
-    T: 'static,
+    T: TaffyNode,
+    T::Context: TaffyConfig,
 {
     #[inline(always)]
     fn get_debug_label(&self, node_id: NodeId) -> &'static str {
@@ -176,16 +182,15 @@ where
             .data
             .as_ref()
             .unwrap();
-        let display = node.style.display;
+        let display = node.get_display();
         let num_children = self.child_count(node_id);
-
         match (num_children, display) {
             (_, Display::None) => "NONE",
             (0, _) => "LEAF",
             #[cfg(feature = "block_layout")]
             (_, Display::Block) => "BLOCK",
             #[cfg(feature = "flexbox")]
-            (_, Display::Flex) => match node.style.flex_direction {
+            (_, Display::Flex) => match node.get_flexbox_container_style().flex_direction() {
                 FlexDirection::Row | FlexDirection::RowReverse => "FLEX ROW",
                 FlexDirection::Column | FlexDirection::ColumnReverse => "FLEX COL",
             },
@@ -196,37 +201,51 @@ where
 
     #[inline(always)]
     fn get_final_layout(&self, node_id: NodeId) -> &Layout {
-        if self.composer.context.use_rounding {
-            &self.composer.nodes[node_id.into_node_key()]
+        if self.composer.context.use_rounding() {
+            self.composer.nodes[node_id.into_node_key()]
                 .data
                 .as_ref()
                 .unwrap()
-                .final_layout
+                .get_final_layout()
         } else {
-            &self.composer.nodes[node_id.into_node_key()]
+            self.composer.nodes[node_id.into_node_key()]
                 .data
                 .as_ref()
                 .unwrap()
-                .unrounded_layout
+                .get_unrounded_layout()
         }
     }
 }
 
 pub struct TaffyTree<'a, T, M>
 where
-    T: 'static,
-    M: FnMut(Size<Option<f32>>, Size<AvailableSpace>, NodeId, Option<&mut T>, &Style) -> Size<f32>,
+    T: TaffyNode,
+    T::Context: TaffyConfig,
+    M: FnMut(
+        Size<Option<f32>>,
+        Size<AvailableSpace>,
+        NodeId,
+        Option<&mut T::NodeContext>,
+        &T::CoreContainerStyle,
+    ) -> Size<f32>,
 {
-    composer: &'a mut Composer<LayoutNode<T>>,
+    composer: &'a mut Composer<T>,
     measure_function: M,
 }
 
 impl<'a, T, M> TaffyTree<'a, T, M>
 where
-    T: 'static,
-    M: FnMut(Size<Option<f32>>, Size<AvailableSpace>, NodeId, Option<&mut T>, &Style) -> Size<f32>,
+    T: TaffyNode,
+    T::Context: TaffyConfig,
+    M: FnMut(
+        Size<Option<f32>>,
+        Size<AvailableSpace>,
+        NodeId,
+        Option<&mut T::NodeContext>,
+        &T::CoreContainerStyle,
+    ) -> Size<f32>,
 {
-    pub fn new(composer: &'a mut Composer<LayoutNode<T>>, measure_function: M) -> Self {
+    pub fn new(composer: &'a mut Composer<T>, measure_function: M) -> Self {
         Self {
             composer,
             measure_function,
@@ -236,8 +255,15 @@ where
 
 impl<T, M> TraversePartialTree for TaffyTree<'_, T, M>
 where
-    T: 'static,
-    M: FnMut(Size<Option<f32>>, Size<AvailableSpace>, NodeId, Option<&mut T>, &Style) -> Size<f32>,
+    T: TaffyNode,
+    T::Context: TaffyConfig,
+    M: FnMut(
+        Size<Option<f32>>,
+        Size<AvailableSpace>,
+        NodeId,
+        Option<&mut T::NodeContext>,
+        &T::CoreContainerStyle,
+    ) -> Size<f32>,
 {
     type ChildIter<'a>
         = ChildIter<'a>
@@ -263,15 +289,31 @@ where
     }
 }
 
-impl<T, M> TraverseTree for TaffyTree<'_, T, M> where
-    M: FnMut(Size<Option<f32>>, Size<AvailableSpace>, NodeId, Option<&mut T>, &Style) -> Size<f32>
+impl<T, M> TraverseTree for TaffyTree<'_, T, M>
+where
+    T: TaffyNode,
+    T::Context: TaffyConfig,
+    M: FnMut(
+        Size<Option<f32>>,
+        Size<AvailableSpace>,
+        NodeId,
+        Option<&mut T::NodeContext>,
+        &T::CoreContainerStyle,
+    ) -> Size<f32>,
 {
 }
 
 impl<T, M> CacheTree for TaffyTree<'_, T, M>
 where
-    T: 'static,
-    M: FnMut(Size<Option<f32>>, Size<AvailableSpace>, NodeId, Option<&mut T>, &Style) -> Size<f32>,
+    T: TaffyNode,
+    T::Context: TaffyConfig,
+    M: FnMut(
+        Size<Option<f32>>,
+        Size<AvailableSpace>,
+        NodeId,
+        Option<&mut T::NodeContext>,
+        &T::CoreContainerStyle,
+    ) -> Size<f32>,
 {
     fn cache_get(
         &self,
@@ -284,8 +326,7 @@ where
             .data
             .as_ref()
             .unwrap()
-            .cache
-            .get(known_dimensions, available_space, run_mode)
+            .cache_get(known_dimensions, available_space, run_mode)
     }
 
     fn cache_store(
@@ -303,8 +344,7 @@ where
             .data
             .as_mut()
             .unwrap()
-            .cache
-            .store(known_dimensions, available_space, run_mode, layout_output)
+            .cache_store(known_dimensions, available_space, run_mode, layout_output)
     }
 
     fn cache_clear(&mut self, node_id: NodeId) {
@@ -315,15 +355,21 @@ where
             .data
             .as_mut()
             .unwrap()
-            .cache
-            .clear();
+            .cache_clear();
     }
 }
 
 impl<T, M> PrintTree for TaffyTree<'_, T, M>
 where
-    T: 'static,
-    M: FnMut(Size<Option<f32>>, Size<AvailableSpace>, NodeId, Option<&mut T>, &Style) -> Size<f32>,
+    T: TaffyNode,
+    T::Context: TaffyConfig,
+    M: FnMut(
+        Size<Option<f32>>,
+        Size<AvailableSpace>,
+        NodeId,
+        Option<&mut T::NodeContext>,
+        &T::CoreContainerStyle,
+    ) -> Size<f32>,
 {
     #[inline(always)]
     fn get_debug_label(&self, node_id: NodeId) -> &'static str {
@@ -331,7 +377,7 @@ where
             .data
             .as_ref()
             .unwrap();
-        let display = node.style.display;
+        let display = node.get_display();
         let num_children = self.child_count(node_id);
 
         match (num_children, display) {
@@ -340,7 +386,7 @@ where
             #[cfg(feature = "block_layout")]
             (_, Display::Block) => "BLOCK",
             #[cfg(feature = "flexbox")]
-            (_, Display::Flex) => match node.style.flex_direction {
+            (_, Display::Flex) => match node.get_flexbox_container_style().flex_direction() {
                 FlexDirection::Row | FlexDirection::RowReverse => "FLEX ROW",
                 FlexDirection::Column | FlexDirection::ColumnReverse => "FLEX COL",
             },
@@ -351,39 +397,46 @@ where
 
     #[inline(always)]
     fn get_final_layout(&self, node_id: NodeId) -> &Layout {
-        if self.composer.context.use_rounding {
-            &self.composer.nodes[node_id.into_node_key()]
+        if self.composer.context.use_rounding() {
+            self.composer.nodes[node_id.into_node_key()]
                 .data
                 .as_ref()
                 .unwrap()
-                .final_layout
+                .get_final_layout()
         } else {
-            &self.composer.nodes[node_id.into_node_key()]
+            self.composer.nodes[node_id.into_node_key()]
                 .data
                 .as_ref()
                 .unwrap()
-                .unrounded_layout
+                .get_unrounded_layout()
         }
     }
 }
 
 impl<T, M> LayoutPartialTree for TaffyTree<'_, T, M>
 where
-    T: 'static,
-    M: FnMut(Size<Option<f32>>, Size<AvailableSpace>, NodeId, Option<&mut T>, &Style) -> Size<f32>,
+    T: TaffyNode,
+    T::Context: TaffyConfig,
+    M: FnMut(
+        Size<Option<f32>>,
+        Size<AvailableSpace>,
+        NodeId,
+        Option<&mut T::NodeContext>,
+        &T::CoreContainerStyle,
+    ) -> Size<f32>,
 {
     type CoreContainerStyle<'a>
-        = &'a Style
+        = &'a T::CoreContainerStyle
     where
         Self: 'a;
 
     #[inline(always)]
     fn get_core_container_style(&self, node_id: NodeId) -> Self::CoreContainerStyle<'_> {
-        &self.composer.nodes[node_id.into_node_key()]
+        self.composer.nodes[node_id.into_node_key()]
             .data
             .as_ref()
             .unwrap()
-            .style
+            .get_core_container_style()
     }
 
     #[inline(always)]
@@ -395,7 +448,7 @@ where
             .data
             .as_mut()
             .unwrap()
-            .unrounded_layout = *layout;
+            .set_unrounded_layout(layout);
     }
 
     #[inline(always)]
@@ -421,8 +474,7 @@ where
                 .data
                 .as_ref()
                 .unwrap()
-                .style
-                .display;
+                .get_display();
             let has_children = tree.child_count(node_id) > 0;
 
             // Dispatch to a layout algorithm based on the node's display style and whether the node has children or not.
@@ -443,8 +495,9 @@ where
                         .data
                         .as_mut()
                         .unwrap();
-                    let style = &data.style;
-                    let node_context = data.context.as_mut();
+                    //let style = data.get_core_container_style();
+                    //let node_context = data.get_node_context_mut();
+                    let (node_context, style) = data.get_node_context_mut_with_style();
                     let measure_function = |known_dimensions, available_space| {
                         (tree.measure_function)(
                             known_dimensions,
@@ -464,112 +517,148 @@ where
 #[cfg(feature = "block_layout")]
 impl<T, M> LayoutBlockContainer for TaffyTree<'_, T, M>
 where
-    T: 'static,
-    M: FnMut(Size<Option<f32>>, Size<AvailableSpace>, NodeId, Option<&mut T>, &Style) -> Size<f32>,
+    T: TaffyNode,
+    T::Context: TaffyConfig,
+    M: FnMut(
+        Size<Option<f32>>,
+        Size<AvailableSpace>,
+        NodeId,
+        Option<&mut T::NodeContext>,
+        &T::CoreContainerStyle,
+    ) -> Size<f32>,
 {
     type BlockContainerStyle<'a>
-        = &'a Style
+        = T::BlockContainerStyle<'a>
     where
         Self: 'a;
 
     type BlockItemStyle<'a>
-        = &'a Style
+        = T::BlockItemStyle<'a>
     where
         Self: 'a;
 
     #[inline(always)]
     fn get_block_container_style(&self, node_id: NodeId) -> Self::BlockContainerStyle<'_> {
-        self.get_core_container_style(node_id)
+        self.composer.nodes[node_id.into_node_key()]
+            .data
+            .as_ref()
+            .unwrap()
+            .get_block_container_style()
     }
 
     #[inline(always)]
     fn get_block_child_style(&self, node_id: NodeId) -> Self::BlockItemStyle<'_> {
-        self.get_core_container_style(node_id)
+        self.composer.nodes[node_id.into_node_key()]
+            .data
+            .as_ref()
+            .unwrap()
+            .get_block_item_style()
     }
 }
 
 #[cfg(feature = "flexbox")]
 impl<T, M> LayoutFlexboxContainer for TaffyTree<'_, T, M>
 where
-    T: 'static,
-    M: FnMut(Size<Option<f32>>, Size<AvailableSpace>, NodeId, Option<&mut T>, &Style) -> Size<f32>,
+    T: TaffyNode,
+    T::Context: TaffyConfig,
+    M: FnMut(
+        Size<Option<f32>>,
+        Size<AvailableSpace>,
+        NodeId,
+        Option<&mut T::NodeContext>,
+        &T::CoreContainerStyle,
+    ) -> Size<f32>,
 {
     type FlexboxContainerStyle<'a>
-        = &'a Style
+        = T::FlexboxContainerStyle<'a>
     where
         Self: 'a;
 
     type FlexboxItemStyle<'a>
-        = &'a Style
+        = T::FlexboxItemStyle<'a>
     where
         Self: 'a;
 
     #[inline(always)]
     fn get_flexbox_container_style(&self, node_id: NodeId) -> Self::FlexboxContainerStyle<'_> {
-        &self.composer.nodes[node_id.into_node_key()]
+        self.composer.nodes[node_id.into_node_key()]
             .data
             .as_ref()
             .unwrap()
-            .style
+            .get_flexbox_container_style()
     }
 
     #[inline(always)]
     fn get_flexbox_child_style(&self, node_id: NodeId) -> Self::FlexboxItemStyle<'_> {
-        &self.composer.nodes[node_id.into_node_key()]
+        self.composer.nodes[node_id.into_node_key()]
             .data
             .as_ref()
             .unwrap()
-            .style
+            .get_flexbox_item_style()
     }
 }
 
 #[cfg(feature = "grid")]
 impl<T, M> LayoutGridContainer for TaffyTree<'_, T, M>
 where
-    T: 'static,
-    M: FnMut(Size<Option<f32>>, Size<AvailableSpace>, NodeId, Option<&mut T>, &Style) -> Size<f32>,
+    T: TaffyNode,
+    T::Context: TaffyConfig,
+    M: FnMut(
+        Size<Option<f32>>,
+        Size<AvailableSpace>,
+        NodeId,
+        Option<&mut T::NodeContext>,
+        &T::CoreContainerStyle,
+    ) -> Size<f32>,
 {
     type GridContainerStyle<'a>
-        = &'a Style
+        = T::GridContainerStyle<'a>
     where
         Self: 'a;
 
     type GridItemStyle<'a>
-        = &'a Style
+        = T::GridItemStyle<'a>
     where
         Self: 'a;
 
     #[inline(always)]
     fn get_grid_container_style(&self, node_id: NodeId) -> Self::GridContainerStyle<'_> {
-        &self.composer.nodes[node_id.into_node_key()]
+        self.composer.nodes[node_id.into_node_key()]
             .data
             .as_ref()
             .unwrap()
-            .style
+            .get_grid_container_style()
     }
 
     #[inline(always)]
     fn get_grid_child_style(&self, node_id: NodeId) -> Self::GridItemStyle<'_> {
-        &self.composer.nodes[node_id.into_node_key()]
+        self.composer.nodes[node_id.into_node_key()]
             .data
             .as_ref()
             .unwrap()
-            .style
+            .get_grid_item_style()
     }
 }
 
 impl<T, M> RoundTree for TaffyTree<'_, T, M>
 where
-    T: 'static,
-    M: FnMut(Size<Option<f32>>, Size<AvailableSpace>, NodeId, Option<&mut T>, &Style) -> Size<f32>,
+    T: TaffyNode,
+    T::Context: TaffyConfig,
+    M: FnMut(
+        Size<Option<f32>>,
+        Size<AvailableSpace>,
+        NodeId,
+        Option<&mut T::NodeContext>,
+        &T::CoreContainerStyle,
+    ) -> Size<f32>,
 {
     #[inline(always)]
     fn get_unrounded_layout(&self, node_id: NodeId) -> &Layout {
-        &self.composer.nodes[node_id.into_node_key()]
+        self.composer.nodes[node_id.into_node_key()]
             .data
             .as_ref()
             .unwrap()
-            .unrounded_layout
+            .get_unrounded_layout()
     }
 
     #[inline(always)]
@@ -581,7 +670,7 @@ where
             .data
             .as_mut()
             .unwrap()
-            .final_layout = *layout;
+            .set_final_layout(layout);
     }
 }
 
@@ -593,7 +682,7 @@ pub enum LayoutError {
 
 pub type LayoutResult = std::result::Result<(), LayoutError>;
 
-pub trait LayoutTree<NodeContext> {
+pub trait LayoutTree<NodeContext, MeasureFnStyle> {
     fn compute_layout_with<MeasureFn>(
         &mut self,
         available_space: Size<AvailableSpace>,
@@ -606,7 +695,7 @@ pub trait LayoutTree<NodeContext> {
             Size<AvailableSpace>,
             NodeId,
             Option<&mut NodeContext>,
-            &Style,
+            &MeasureFnStyle,
         ) -> Size<f32>;
 
     fn compute_layout(&mut self, available_space: Size<AvailableSpace>) -> LayoutResult;
@@ -616,9 +705,10 @@ pub trait LayoutTree<NodeContext> {
     fn print_layout_tree(&self) -> LayoutResult;
 }
 
-impl<T> LayoutTree<T> for Recomposer<LayoutNode<T>>
+impl<T> LayoutTree<T::NodeContext, T::CoreContainerStyle> for Recomposer<T>
 where
-    T: 'static,
+    T: TaffyNode,
+    T::Context: TaffyConfig,
 {
     fn compute_layout_with<MeasureFn>(
         &mut self,
@@ -631,8 +721,8 @@ where
             Size<Option<f32>>,
             Size<AvailableSpace>,
             NodeId,
-            Option<&mut T>,
-            &Style,
+            Option<&mut T::NodeContext>,
+            &T::CoreContainerStyle,
         ) -> Size<f32>,
     {
         self.with_composer_mut(|composer| {
@@ -642,7 +732,7 @@ where
             let node_id = node_key.into_node_id();
             let mut tree = TaffyTree::new(composer, measure_function);
             compute_root_layout(&mut tree, node_id, available_space);
-            if tree.composer.context.use_rounding {
+            if tree.composer.context.use_rounding() {
                 round_layout(&mut tree, node_id);
             }
             Ok(())
