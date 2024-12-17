@@ -28,9 +28,9 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "compose-rt"
-version = "0.15.0"
+version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "215aa3cb524528397fdea4185d675bd95555400a6b914d699d7e38325593d50e"
+checksum = "24140543e042dd3994699ee5e69901cfae7c9ad04ddb273a469adc69abcdf1a7"
 dependencies = [
  "generational-box",
  "rustc-hash",
@@ -39,7 +39,7 @@ dependencies = [
 
 [[package]]
 name = "compose-taffy"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "compose-rt",
  "taffy",

@@ -35,8 +35,9 @@ pub trait TaffyLayout<NodeContext, CoreContainerStyle> {
     fn print_layout_tree(&self) -> LayoutResult;
 }
 
-impl<T> TaffyLayout<T::NodeContext, T::CoreContainerStyle> for Recomposer<T>
+impl<S, T> TaffyLayout<T::NodeContext, T::CoreContainerStyle> for Recomposer<S, T>
 where
+    S: 'static,
     T: TaffyNode,
     T::Context: TaffyConfig,
 {
