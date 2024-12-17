@@ -3,7 +3,7 @@
 [![Docs Status](https://docs.rs/compose-taffy/badge.svg)](https://docs.rs/compose-taffy)
 [![Latest Version](https://img.shields.io/crates/v/compose-taffy.svg)](https://crates.io/crates/compose-taffy)
 
-A layout tree implementation using taffy and compose-rt crate.
+A layout tree implementation using [compose-rt](https://github.com/cksac/compose-rt) and [taffy](https://github.com/DioxusLabs/taffy) crate.
 
 ## Example
 ```rust
