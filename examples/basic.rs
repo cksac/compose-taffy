@@ -1,6 +1,6 @@
 use compose_rt::{Composer, Root};
 use compose_taffy::impls::{LayoutNode, TaffyConfig};
-use compose_taffy::LayoutTree;
+use compose_taffy::TaffyLayout;
 use taffy::{AvailableSpace, Dimension, JustifyContent, Size, Style};
 
 type Scope<T> = compose_taffy::impls::Scope<T, ()>;

@@ -1,9 +1,9 @@
 use compose_rt::ComposeNode;
 use taffy::{Cache, Layout, Style};
 
-use crate::TaffyNode;
+use crate::traits;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TaffyConfig {
     pub use_rounding: bool,
 }
@@ -15,25 +15,30 @@ impl Default for TaffyConfig {
 }
 
 impl TaffyConfig {
+    #[inline(always)]
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[inline(always)]
     pub fn with_rounding(mut self, use_rounding: bool) -> Self {
         self.use_rounding = use_rounding;
         self
     }
 
+    #[inline(always)]
     pub fn enable_rounding(&mut self) {
         self.use_rounding = true;
     }
 
+    #[inline(always)]
     pub fn disable_rounding(&mut self) {
         self.use_rounding = false;
     }
 }
 
-impl crate::TaffyConfig for TaffyConfig {
+impl traits::TaffyConfig for TaffyConfig {
+    #[inline(always)]
     fn use_rounding(&self) -> bool {
         self.use_rounding
     }
@@ -55,6 +60,7 @@ impl<T> LayoutNode<T>
 where
     T: 'static,
 {
+    #[inline(always)]
     pub fn new(style: Style) -> Self {
         Self {
             style,
@@ -65,6 +71,7 @@ where
         }
     }
 
+    #[inline(always)]
     pub fn with_context(style: Style, context: T) -> Self {
         Self {
             style,
@@ -73,6 +80,11 @@ where
             cache: Cache::new(),
             context: Some(context),
         }
+    }
+
+    #[inline(always)]
+    pub fn mark_dirty(&mut self) {
+        self.cache.clear();
     }
 }
 
@@ -83,7 +95,7 @@ where
     type Context = TaffyConfig;
 }
 
-impl<T> TaffyNode for LayoutNode<T>
+impl<T> traits::TaffyNode for LayoutNode<T>
 where
     T: 'static,
 {
@@ -91,61 +103,85 @@ where
 
     type CoreContainerStyle = Style;
 
+    #[cfg(feature = "block_layout")]
     type BlockContainerStyle<'a>
         = &'a Style
     where
         Self: 'a;
+
+    #[cfg(feature = "block_layout")]
     type BlockItemStyle<'a>
         = &'a Style
     where
         Self: 'a;
 
+    #[cfg(feature = "flexbox")]
     type FlexboxContainerStyle<'a>
         = &'a Style
     where
         Self: 'a;
+
+    #[cfg(feature = "flexbox")]
     type FlexboxItemStyle<'a>
         = &'a Style
     where
         Self: 'a;
 
+    #[cfg(feature = "grid")]
     type GridContainerStyle<'a>
         = &'a Style
     where
         Self: 'a;
+
+    #[cfg(feature = "grid")]
     type GridItemStyle<'a>
         = &'a Style
     where
         Self: 'a;
 
+    #[inline(always)]
     fn get_node_context(&self) -> Option<&Self::NodeContext> {
         self.context.as_ref()
     }
 
+    #[inline(always)]
     fn get_node_context_mut(&mut self) -> Option<&mut Self::NodeContext> {
         self.context.as_mut()
     }
 
+    #[inline(always)]
+    fn get_node_context_mut_with_core_style(
+        &mut self,
+    ) -> (Option<&mut Self::NodeContext>, &Self::CoreContainerStyle) {
+        (self.context.as_mut(), &self.style)
+    }
+
+    #[inline(always)]
     fn get_display(&self) -> taffy::Display {
         self.style.display
     }
 
+    #[inline(always)]
     fn get_final_layout(&self) -> &taffy::Layout {
         &self.final_layout
     }
 
+    #[inline(always)]
     fn set_final_layout(&mut self, layout: &taffy::Layout) {
         self.final_layout = *layout;
     }
 
+    #[inline(always)]
     fn get_unrounded_layout(&self) -> &taffy::Layout {
         &self.unrounded_layout
     }
 
+    #[inline(always)]
     fn set_unrounded_layout(&mut self, layout: &taffy::Layout) {
         self.unrounded_layout = *layout;
     }
 
+    #[inline(always)]
     fn cache_get(
         &self,
         known_dimensions: taffy::Size<Option<f32>>,
@@ -155,6 +191,7 @@ where
         self.cache.get(known_dimensions, available_space, run_mode)
     }
 
+    #[inline(always)]
     fn cache_store(
         &mut self,
         known_dimensions: taffy::Size<Option<f32>>,
@@ -166,42 +203,50 @@ where
             .store(known_dimensions, available_space, run_mode, layout_output)
     }
 
+    #[inline(always)]
     fn cache_clear(&mut self) {
         self.cache.clear()
     }
 
+    #[inline(always)]
     fn get_core_container_style(&self) -> &Self::CoreContainerStyle {
         &self.style
     }
 
+    #[cfg(feature = "block_layout")]
+    #[inline(always)]
     fn get_block_container_style(&self) -> Self::BlockContainerStyle<'_> {
         &self.style
     }
 
+    #[cfg(feature = "block_layout")]
+    #[inline(always)]
     fn get_block_item_style(&self) -> Self::BlockItemStyle<'_> {
         &self.style
     }
 
+    #[cfg(feature = "flexbox")]
+    #[inline(always)]
     fn get_flexbox_container_style(&self) -> Self::FlexboxContainerStyle<'_> {
         &self.style
     }
 
+    #[cfg(feature = "flexbox")]
+    #[inline(always)]
     fn get_flexbox_item_style(&self) -> Self::FlexboxItemStyle<'_> {
         &self.style
     }
 
+    #[cfg(feature = "grid")]
+    #[inline(always)]
     fn get_grid_container_style(&self) -> Self::GridContainerStyle<'_> {
         &self.style
     }
 
+    #[cfg(feature = "grid")]
+    #[inline(always)]
     fn get_grid_item_style(&self) -> Self::GridItemStyle<'_> {
         &self.style
-    }
-
-    fn get_node_context_mut_with_style(
-        &mut self,
-    ) -> (Option<&mut Self::NodeContext>, &Self::CoreContainerStyle) {
-        (self.context.as_mut(), &self.style)
     }
 }
 

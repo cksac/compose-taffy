@@ -5,12 +5,14 @@
 
 A layout tree implementation using taffy and compose-rt crate.
 
+# Example
 ```rust
 use compose_rt::{Composer, Root};
-use compose_taffy::{LayoutNode, LayoutTree, TaffyConfig};
+use compose_taffy::impls::{LayoutNode, TaffyConfig};
+use compose_taffy::TaffyLayout;
 use taffy::{AvailableSpace, Dimension, JustifyContent, Size, Style};
 
-type Scope<T> = compose_taffy::Scope<T, ()>;
+type Scope<T> = compose_taffy::impls::Scope<T, ()>;
 
 struct Container;
 
