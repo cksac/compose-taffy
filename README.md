@@ -5,7 +5,7 @@
 
 A layout tree implementation using taffy and compose-rt crate.
 
-# Example
+## Example
 ```rust
 use compose_rt::{Composer, Root};
 use compose_taffy::impls::{LayoutNode, TaffyConfig};
