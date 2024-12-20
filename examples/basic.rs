@@ -22,12 +22,14 @@ where
         |n, style, _| {
             if n.style != style {
                 n.style = style;
+                n.mark_dirty();
             }
         },
     );
 }
 
 struct Leaf;
+
 #[track_caller]
 fn leaf<P>(s: Scope<P>, style: Style)
 where
