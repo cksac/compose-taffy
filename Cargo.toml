@@ -1,6 +1,6 @@
 [package]
 name = "compose-taffy"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 authors = ["cksac <cs.cksac@gmail.com>"]
 description = "A layout tree implementation using taffy and compose-rt crate."
@@ -12,7 +12,7 @@ repository = "https://github.com/cksac/compose-taffy"
 homepage = "https://github.com/cksac/compose-taffy"
 
 [dependencies]
-compose-rt = "0.16"
+compose-rt = "0.17"
 taffy = { version = "0.7", default-features = false, features = ["std"] }
 
 [features]
