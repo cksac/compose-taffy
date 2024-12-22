@@ -251,3 +251,4 @@ where
 }
 
 pub type Scope<T, C> = compose_rt::Scope<T, LayoutNode<C>>;
+pub type State<T, C> = compose_rt::State<T, LayoutNode<C>>;

@@ -28,9 +28,8 @@ checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
 name = "compose-rt"
-version = "0.17.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c9801af0832ebd38098d2ceb55f23e35dd57b87ab956e17ced03ac0dcaef259"
+version = "0.18.0"
+source = "git+https://github.com/cksac/compose-rt#c7480ef2f58bb79cb5d12bd339b65a5763950887"
 dependencies = [
  "generational-box",
  "rustc-hash",

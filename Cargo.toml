@@ -12,7 +12,7 @@ repository = "https://github.com/cksac/compose-taffy"
 homepage = "https://github.com/cksac/compose-taffy"
 
 [dependencies]
-compose-rt = "0.17"
+compose-rt = { git = "https://github.com/cksac/compose-rt" }
 taffy = { version = "0.7", default-features = false, features = ["std"] }
 
 [features]
